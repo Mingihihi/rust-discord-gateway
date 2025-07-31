@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use tokio_tungstenite::{self, tungstenite::Message};
 use serde_json;
-use futures_util::{SinkExt, StreamExt}; // extended trait for ws_stream.split()
 use tokio::{self, sync::*};
 use std::time::Duration;
 use async_trait::async_trait;
@@ -17,34 +16,47 @@ pub trait GatewayEventHandler: Send + Sync {
 pub struct DiscordGateway {
     pub url: Option<String>,
     pub token: String,
-    ws: Arc<Mutex<MyWebSocket>>,
+    ws: Option<Arc<Mutex<MyWebSocket>>>,
 
     heartbeat_interval: Option<tokio::task::JoinHandle<()>>,
     handler: Option<Arc<dyn GatewayEventHandler>>
 }
 
 impl DiscordGateway {
-    pub async fn connect(token: &str, mut url: Option<&str>) -> anyhow::Result<Self> {
+    pub async fn builder(token: &str, mut url: Option<&str>) -> anyhow::Result<Self> {
         if url.is_none() {
             url = Some("wss://gateway.discord.gg/?v=10&encoding=json");
         }
-
-        let ws = MyWebSocket::new(url.unwrap()).await?;
 
         Ok(
             Self {
                 token: token.to_string(),
                 url: Some(url.unwrap().to_string()),
-                ws: Arc::new(Mutex::new(ws)),
                 heartbeat_interval: None,
+                ws: None,
                 handler: None,
             }
         )
     }
 
+    pub async fn start(&mut self) -> anyhow::Result<bool> {
+        let ws = MyWebSocket::new(self.url.as_ref().unwrap()).await.map_err(|_| anyhow::anyhow!("An error has occurred while creating websocket connection"))?;
+
+        self.ws = Some(Arc::new(Mutex::new(ws)));
+
+        // handle event here & register identity
+
+        Ok(true)
+    }
+
     // Send a single heartbeat message
     async fn send_heartbeat(&mut self) -> anyhow::Result<()> {
-        let mut ws = self.ws.lock().await;
+        let ws_lock = self
+            .ws
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Please build DiscordGateway first."))?;
+
+        let mut ws = ws_lock.lock().await;
         ws.send(Message::Text("{\"op\":1,\"d\":null}".to_string().into())).await
             .map_err(|e| anyhow::anyhow!("Failed to send heartbeat: {}", e))
     }
@@ -61,7 +73,7 @@ impl DiscordGateway {
         // Send the first heartbeat
         self.send_heartbeat().await?;
         
-        let ws = self.ws.clone();
+        let ws = Arc::clone(self.ws.as_ref().ok_or_else(|| anyhow::anyhow!("Please build DiscordGateway first."))?);
         
         // Spawn a task that sends heartbeat messages at regular intervals
         let heartbeat_task = tokio::spawn(async move {
@@ -102,6 +114,8 @@ impl DiscordGateway {
         Ok(true)
     }
 
-
+    pub async fn event_handler(&mut self, handler: impl GatewayEventHandler + 'static) {
+        self.handler = Some(Arc::new(handler));
+    }
 
 }

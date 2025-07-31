@@ -56,7 +56,7 @@ impl MyWebSocket {
         writer.close().await.map_err(|e| anyhow::anyhow!("Failed to close WebSocket: {}", e))
     }
 
-    pub async fn event_handler(&mut self, handler: Arc<dyn WsEventHandler>) {
+    pub async fn event_handler(&mut self, handler: impl WsEventHandler + 'static) {
         let reader = self.reader.clone();
         
         tokio::spawn(async move {
