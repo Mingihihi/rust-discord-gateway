@@ -19,15 +19,15 @@ let identifyPayload = r#"{
 writer.send(Message::Text(identifyPayload.to_string().into())).await;
 ```
 
-event handle for websocket
+event handle
 idea:
 ```rust
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content == "!ping" {
-            println!("do what ever you want here!")
-        }
+        // doing things here
     }
 }
 ```
+
+rewrite main fn, fix errors
