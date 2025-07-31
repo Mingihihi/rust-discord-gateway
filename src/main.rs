@@ -13,6 +13,7 @@ async fn main() {
     let token = std::env::var("TOKEN").expect("Cannot find token from .env file.");
 
     // Create a new Discord Gateway instance
+    ////////////////////////////////////////////// ERROR HERE
     let mut gateway = DiscordGateway::connect(&token, None).await.expect("Failed to connect to Discord Gateway");
     
     println!("Connected to Discord Gateway");
