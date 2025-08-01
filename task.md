@@ -30,4 +30,4 @@ impl EventHandler for Handler {
 }
 ```
 
-rewrite main fn, fix errors
+~~rewrite main fn, fix errors~~ DONE
